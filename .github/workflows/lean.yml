@@ -27,3 +27,6 @@ jobs:
 
       - name: Check browser planner
         run: node planner/test-model.js
+
+      - name: Check synthetic cohorts
+        run: node planner/test-cohorts.js
