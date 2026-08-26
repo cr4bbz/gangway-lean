@@ -32,12 +32,37 @@ function assertSolvedPlan(result) {
   }
 }
 
+function subjectCapacityUpperBound(task) {
+  const capacities = task.roomCandidates
+    .map(room => model.ROOMS[room].capacity)
+    .sort((a, b) => b - a);
+  const parallelGroups = Math.min(task.teacherCandidates.length, capacities.length);
+  return capacities.slice(0, parallelGroups).reduce((sum, capacity) => sum + capacity, 0);
+}
+
 const rows = [];
 for (const scenario of testData.TEST_SCENARIOS) {
   const start = performance.now();
   const result = model.generatePlan(scenario.choices);
   const elapsedMs = performance.now() - start;
-  if (result.ok) assertSolvedPlan(result);
+  const expected = scenario.metadata.expectedSolvable;
+
+  assert.equal(
+    result.ok,
+    expected,
+    `${scenario.id}: expected solvable=${expected}, got ${result.ok}; failures=${result.failures.length}`
+  );
+
+  if (result.ok) {
+    assertSolvedPlan(result);
+  } else if (scenario.id !== "cohort-75-negative") {
+    assert.ok(
+      result.failures.some(failure =>
+        failure.tasks.some(task => task.students.length > subjectCapacityUpperBound(task))
+      ),
+      `${scenario.id}: expected a demonstrable teacher/room capacity bottleneck`
+    );
+  }
 
   const monday = scenario.metadata.attendance.monday;
   const thursday = scenario.metadata.attendance.thursday;
@@ -45,10 +70,16 @@ for (const scenario of testData.TEST_SCENARIOS) {
   assert.equal(thursday.present + thursday.absent, scenario.metadata.enrolled);
   assert.ok(uniqueStudents(scenario.choices) <= scenario.metadata.enrolled);
 
-  const failureSummary = result.failures.map(failure => ({
-    moment: `${failure.day}|${failure.block}|${failure.slotIndex + 1}`,
-    tasks: failure.tasks.map(task => `${task.subject}:${task.students.length}SuS/${task.teacherCandidates.length}L`).join(",")
-  }));
+  if (scenario.id === "cohort-75-negative") {
+    assert.ok(
+      result.failures.some(failure =>
+        failure.day === "thursday" &&
+        failure.block === "morning" &&
+        failure.tasks.some(task => task.subject === "chemistry" && task.teacherCandidates.length === 0)
+      ),
+      "Negative test must expose unavailable Thursday-morning chemistry"
+    );
+  }
 
   rows.push({
     id: scenario.id,
@@ -57,24 +88,11 @@ for (const scenario of testData.TEST_SCENARIOS) {
     thursdayPresent: thursday.present,
     groups: result.assignments.length,
     failures: result.failures.length,
+    expected: expected ? "OK" : "FAIL",
     actual: result.ok ? "OK" : "FAIL",
     ms: elapsedMs.toFixed(2)
   });
-
-  if (failureSummary.length) console.log(`${scenario.id} failures:`, JSON.stringify(failureSummary));
 }
 
-const negative = testData.byId["cohort-75-negative"];
-const negativeResult = model.generatePlan(negative.choices);
-assert.equal(negativeResult.ok, false);
-assert.ok(
-  negativeResult.failures.some(failure =>
-    failure.day === "thursday" &&
-    failure.block === "morning" &&
-    failure.tasks.some(task => task.subject === "chemistry" && task.teacherCandidates.length === 0)
-  ),
-  "Negative test must still expose unavailable Thursday-morning chemistry"
-);
-
 console.table(rows);
-console.log("Gangway capacity diagnostic: invariants confirmed; scenario outcomes listed above.");
+console.log("Gangway synthetic cohorts: capacity-aware expected outcomes confirmed.");
