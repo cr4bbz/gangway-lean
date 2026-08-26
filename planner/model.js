@@ -54,29 +54,30 @@ window.GangwayModel = (() => {
   };
 
   const ROOMS = {
-    english: { label: "Englisch", mode: "scheduled" },
-    science: { label: "Biologie / Physik / Chemie", mode: "scheduled" },
-    art: { label: "Kunst", mode: "scheduled" },
-    german: { label: "Deutsch", mode: "scheduled" },
-    historyGeography: { label: "Geschichte / Geographie", mode: "scheduled" },
-    individualWork: { label: "Einzelarbeit", mode: "independent" },
-    groupWork: { label: "Gruppenarbeit", mode: "independent" },
-    chill: { label: "Chillraum", mode: "nonTeaching" }
+    english: { label: "Englisch", mode: "scheduled", capacity: 11 },
+    science: { label: "Biologie / Physik / Chemie", mode: "scheduled", capacity: 12 },
+    art: { label: "Kunst", mode: "scheduled", capacity: 8 },
+    german: { label: "Deutsch", mode: "scheduled", capacity: 11 },
+    historyGeography: { label: "Geschichte / Geographie", mode: "scheduled", capacity: 12 },
+    mathematics: { label: "Mathematik", mode: "scheduled", capacity: 10 },
+    individualWork: { label: "Einzelarbeit", mode: "independent", capacity: 8 },
+    groupWork: { label: "Gruppenarbeit", mode: "independent", capacity: 14 },
+    breakRoom: { label: "Pausenraum", mode: "nonTeaching", capacity: 6 }
   };
 
-  const SCHEDULABLE_ROOMS = ["english", "science", "art", "german", "historyGeography"];
+  const SCHEDULABLE_ROOMS = ["english", "science", "art", "german", "historyGeography", "mathematics"];
   const INDEPENDENT_ROOMS = ["individualWork", "groupWork"];
 
   const PREFERRED_ROOMS = {
-    english: ["english", "german", "historyGeography", "art", "science"],
-    biology: ["science", "art", "english", "german", "historyGeography"],
-    chemistry: ["science", "art", "english", "german", "historyGeography"],
-    physics: ["science", "art", "english", "german", "historyGeography"],
-    german: ["german", "english", "historyGeography", "art", "science"],
-    history: ["historyGeography", "german", "english", "art", "science"],
-    geography: ["historyGeography", "german", "english", "art", "science"],
-    politics: ["historyGeography", "german", "english", "art", "science"],
-    mathematics: ["art", "english", "german", "historyGeography", "science"]
+    english: ["english", "german", "historyGeography", "mathematics", "art", "science"],
+    biology: ["science", "historyGeography", "english", "german", "mathematics", "art"],
+    chemistry: ["science", "historyGeography", "english", "german", "mathematics", "art"],
+    physics: ["science", "historyGeography", "english", "german", "mathematics", "art"],
+    german: ["german", "english", "historyGeography", "mathematics", "art", "science"],
+    history: ["historyGeography", "german", "english", "mathematics", "art", "science"],
+    geography: ["historyGeography", "german", "english", "mathematics", "art", "science"],
+    politics: ["historyGeography", "german", "english", "mathematics", "art", "science"],
+    mathematics: ["mathematics", "historyGeography", "english", "german", "art", "science"]
   };
 
   function availabilityKey(day, block) {
@@ -102,6 +103,71 @@ window.GangwayModel = (() => {
     return a.slotIndex - b.slotIndex;
   }
 
+  function combinations(values, size, start = 0, prefix = [], result = []) {
+    if (prefix.length === size) {
+      result.push(prefix);
+      return result;
+    }
+    for (let index = start; index <= values.length - (size - prefix.length); index += 1) {
+      combinations(values, size, index + 1, [...prefix, values[index]], result);
+    }
+    return result;
+  }
+
+  function splitMembers(members, rooms) {
+    const groups = [];
+    let cursor = 0;
+    for (let index = 0; index < rooms.length; index += 1) {
+      const room = rooms[index];
+      const remainingStudents = members.length - cursor;
+      const remainingGroups = rooms.length - index - 1;
+      const size = Math.min(ROOMS[room].capacity, remainingStudents - remainingGroups);
+      if (size <= 0) return null;
+      groups.push(members.slice(cursor, cursor + size));
+      cursor += size;
+    }
+    return cursor === members.length ? groups : null;
+  }
+
+  function groupOptions(task, usedTeachers, usedRooms) {
+    const teachers = task.teacherCandidates.filter(id => !usedTeachers.has(id));
+    const rooms = task.roomCandidates.filter(id => !usedRooms.has(id));
+    const studentCount = task.members.length;
+    const maxGroups = Math.min(teachers.length, rooms.length, studentCount);
+    const options = [];
+
+    for (let groupCount = 1; groupCount <= maxGroups; groupCount += 1) {
+      const roomSets = combinations(rooms, groupCount)
+        .filter(roomSet => roomSet.reduce((sum, room) => sum + ROOMS[room].capacity, 0) >= studentCount);
+      if (roomSets.length === 0) continue;
+
+      const teacherSets = combinations(teachers, groupCount);
+      for (const roomSet of roomSets) {
+        const memberGroups = splitMembers(task.members, roomSet);
+        if (!memberGroups) continue;
+        for (const teacherSet of teacherSets) {
+          options.push(roomSet.map((room, index) => {
+            const members = memberGroups[index];
+            return {
+              ...task,
+              teacher: teacherSet[index],
+              room,
+              members,
+              students: members.map(member => member.student),
+              levels: members.map(member => member.level),
+              capacity: ROOMS[room].capacity
+            };
+          }));
+        }
+      }
+
+      // Prefer the smallest number of simultaneous groups that can solve this subject.
+      if (options.length > 0) break;
+    }
+
+    return options;
+  }
+
   function solveMoment(tasks) {
     const enriched = tasks.map(task => ({
       ...task,
@@ -110,9 +176,10 @@ window.GangwayModel = (() => {
     }));
 
     const ordered = [...enriched].sort((a, b) => {
-      const aScore = a.teacherCandidates.length * a.roomCandidates.length;
-      const bScore = b.teacherCandidates.length * b.roomCandidates.length;
-      return aScore - bScore;
+      const aTeacherPressure = a.members.length / Math.max(1, a.teacherCandidates.length);
+      const bTeacherPressure = b.members.length / Math.max(1, b.teacherCandidates.length);
+      if (aTeacherPressure !== bTeacherPressure) return bTeacherPressure - aTeacherPressure;
+      return a.teacherCandidates.length - b.teacherCandidates.length;
     });
 
     if (ordered.some(task => task.teacherCandidates.length === 0 || task.roomCandidates.length === 0)) {
@@ -122,21 +189,17 @@ window.GangwayModel = (() => {
     function search(index, usedTeachers, usedRooms, assignments) {
       if (index >= ordered.length) return assignments;
       const task = ordered[index];
+      const options = groupOptions(task, usedTeachers, usedRooms);
 
-      for (const teacher of task.teacherCandidates) {
-        if (usedTeachers.has(teacher)) continue;
-        for (const room of task.roomCandidates) {
-          if (usedRooms.has(room)) continue;
-
-          const nextAssignments = [...assignments, { ...task, teacher, room }];
-          const result = search(
-            index + 1,
-            new Set([...usedTeachers, teacher]),
-            new Set([...usedRooms, room]),
-            nextAssignments
-          );
-          if (result) return result;
-        }
+      for (const option of options) {
+        const nextTeachers = new Set(usedTeachers);
+        const nextRooms = new Set(usedRooms);
+        option.forEach(group => {
+          nextTeachers.add(group.teacher);
+          nextRooms.add(group.room);
+        });
+        const result = search(index + 1, nextTeachers, nextRooms, [...assignments, ...option]);
+        if (result) return result;
       }
       return null;
     }
@@ -164,16 +227,9 @@ window.GangwayModel = (() => {
 
         const moment = moments.get(key);
         if (!moment.subjects.has(subject)) {
-          moment.subjects.set(subject, {
-            subject,
-            students: [],
-            levels: []
-          });
+          moment.subjects.set(subject, { subject, members: [] });
         }
-
-        const subjectTask = moment.subjects.get(subject);
-        subjectTask.students.push(choice.student);
-        subjectTask.levels.push(choice.level);
+        moment.subjects.get(subject).members.push({ student: choice.student, level: choice.level });
       });
     });
 
@@ -181,6 +237,8 @@ window.GangwayModel = (() => {
       ...moment,
       tasks: [...moment.subjects.values()].map(task => ({
         ...task,
+        students: task.members.map(member => member.student),
+        levels: task.members.map(member => member.level),
         day: moment.day,
         block: moment.block,
         slotIndex: moment.slotIndex
@@ -195,11 +253,8 @@ window.GangwayModel = (() => {
 
     moments.forEach(moment => {
       const solved = solveMoment(moment.tasks);
-      if (solved.ok) {
-        assignments.push(...solved.assignments);
-      } else {
-        failures.push({ ...moment, ...solved });
-      }
+      if (solved.ok) assignments.push(...solved.assignments);
+      else failures.push({ ...moment, ...solved });
     });
 
     assignments.sort(compareMoments);
@@ -212,34 +267,10 @@ window.GangwayModel = (() => {
   }
 
   const REFERENCE_CHOICES = [
-    {
-      student: "Alex",
-      level: "msa",
-      day: "monday",
-      block: "morning",
-      subjects: ["english", "biology", "mathematics"]
-    },
-    {
-      student: "Alex",
-      level: "msa",
-      day: "thursday",
-      block: "afternoon",
-      subjects: ["english", "biology", "mathematics"]
-    },
-    {
-      student: "Bea",
-      level: "esa",
-      day: "monday",
-      block: "morning",
-      subjects: ["german", "geography", "physics"]
-    },
-    {
-      student: "Bea",
-      level: "esa",
-      day: "thursday",
-      block: "afternoon",
-      subjects: ["mathematics", "english", "chemistry"]
-    }
+    { student: "Alex", level: "msa", day: "monday", block: "morning", subjects: ["english", "biology", "mathematics"] },
+    { student: "Alex", level: "msa", day: "thursday", block: "afternoon", subjects: ["english", "biology", "mathematics"] },
+    { student: "Bea", level: "esa", day: "monday", block: "morning", subjects: ["german", "geography", "physics"] },
+    { student: "Bea", level: "esa", day: "thursday", block: "afternoon", subjects: ["mathematics", "english", "chemistry"] }
   ];
 
   return {
