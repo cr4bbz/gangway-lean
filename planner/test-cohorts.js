@@ -15,6 +15,12 @@ function uniqueStudents(choices) {
 function assertCollisionFree(result) {
   const moments = new Map();
   for (const assignment of result.assignments) {
+    assert.ok(
+      model.SCHEDULABLE_ROOMS.includes(assignment.room),
+      `Non-schedulable room assigned: ${assignment.room}`
+    );
+    assert.equal(model.INDEPENDENT_ROOMS.includes(assignment.room), false, "Work rooms must remain independently usable");
+
     const key = `${assignment.day}|${assignment.block}|${assignment.slotIndex}`;
     if (!moments.has(key)) moments.set(key, []);
     moments.get(key).push(assignment);
@@ -75,4 +81,4 @@ for (const scenario of testData.TEST_SCENARIOS) {
 }
 
 console.table(rows);
-console.log("Gangway synthetic cohorts: all expected outcomes confirmed.");
+console.log("Gangway synthetic cohorts: all expected outcomes confirmed without allocating work rooms.");
