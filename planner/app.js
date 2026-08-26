@@ -166,7 +166,7 @@
             : "keine verfügbare Lehrkraft";
           const rooms = task.roomCandidates.length
             ? task.roomCandidates.map(id => model.ROOMS[id].label).join(", ")
-            : "kein Raum";
+            : "kein planbarer Raum";
           return `<li><strong>${model.SUBJECT_LABEL[task.subject]}</strong>: ${teachers}; Räume: ${rooms}</li>`;
         }).join("");
 
@@ -275,8 +275,10 @@
     }).join("");
 
     const rooms = Object.entries(model.ROOMS).map(([id, room]) => {
-      const isRegular = id !== "chill" && id !== "art";
-      const tag = id === "chill" ? "Pause" : id === "art" ? "derzeit ohne Kunstfach" : isRegular ? "planbar" : "";
+      let tag = "nicht verplant";
+      if (room.mode === "scheduled") tag = "planbar";
+      if (room.mode === "independent") tag = "frei nutzbar · nicht verplant";
+      if (room.mode === "nonTeaching") tag = "kein Unterrichtsraum";
       return `<li><strong>${room.label}</strong><span>${tag}</span></li>`;
     }).join("");
 
@@ -307,6 +309,8 @@
   document.querySelector("#load-reference").addEventListener("click", loadReference);
   document.querySelector("#generate").addEventListener("click", generate);
   document.querySelector("#copy-lean").addEventListener("click", copyLean);
+
+  window.GangwayPlannerUI = { addChoice, clearChoices, generate };
 
   renderAvailability();
   loadReference();
