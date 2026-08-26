@@ -30,6 +30,19 @@
         <button id="add-choice" class="button secondary" type="button">+ Belegung</button>
       </div>
 
+      <div class="test-data-panel" aria-labelledby="test-data-title">
+        <div>
+          <p class="kicker">Testdaten</p>
+          <strong id="test-data-title">Synthetische Kohorte laden</strong>
+        </div>
+        <label>
+          <span>Szenario</span>
+          <select id="test-scenario"></select>
+        </label>
+        <button id="load-test-scenario" class="button secondary" type="button">Testdaten laden</button>
+        <div id="test-scenario-info" class="test-data-info" aria-live="polite"></div>
+      </div>
+
       <div id="choices" class="choice-list"></div>
 
       <div class="toolbar">
@@ -116,6 +129,8 @@
   </template>
 
   <script src="./model.js"></script>
+  <script src="./test-data.js"></script>
   <script src="./app.js"></script>
+  <script src="./test-data-ui.js"></script>
 </body>
 </html>
