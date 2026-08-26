@@ -22,5 +22,8 @@ jobs:
           tar --zstd -xf /tmp/lean.tar.zst -C /tmp/lean --strip-components=1
           echo "/tmp/lean/bin" >> "$GITHUB_PATH"
 
-      - name: Build
+      - name: Build Lean model
         run: lake build
+
+      - name: Check browser planner
+        run: node planner/test-model.js
