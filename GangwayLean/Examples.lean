@@ -31,8 +31,49 @@ example : draftPlanForChoice? repeatedMathMonday = some [
   ] := by
   decide
 
+/-- A complete, feasible Monday/Thursday declaration. -/
+def exampleWeek : WeeklyChoice :=
+  {
+    student := "example-student"
+    level := .msa
+    mondayBlock := .afternoon
+    mondaySubjects := ⟨.mathematics, .mathematics, .mathematics⟩
+    thursdayBlock := .afternoon
+    thursdaySubjects := ⟨.mathematics, .biology, .english⟩
+  }
+
+example : weeklyChoiceFeasible exampleWeek = true := by
+  decide
+
+/-- One concrete timetable that covers the complete example week. -/
+def exampleWeekPlan : List LessonOffering := [
+  ⟨.monday, .afternoon, .first, .mathematics, .phil⟩,
+  ⟨.monday, .afternoon, .second, .mathematics, .phil⟩,
+  ⟨.monday, .afternoon, .third, .mathematics, .phil⟩,
+  ⟨.thursday, .afternoon, .first, .mathematics, .julian⟩,
+  ⟨.thursday, .afternoon, .second, .biology, .julian⟩,
+  ⟨.thursday, .afternoon, .third, .english, .marianne⟩
+]
+
+example : timetableValidFor exampleWeekPlan [exampleWeek] = true := by
+  decide
+
 /-- German currently has no available qualified teacher on Thursday afternoon. -/
 example : canOffer .thursday .afternoon .esa .german = false := by
+  decide
+
+/-- A weekly choice that requests German on Thursday afternoon is therefore infeasible. -/
+def impossibleThursdayGerman : WeeklyChoice :=
+  {
+    student := "counterexample-student"
+    level := .esa
+    mondayBlock := .morning
+    mondaySubjects := ⟨.english, .biology, .mathematics⟩
+    thursdayBlock := .afternoon
+    thursdaySubjects := ⟨.german, .mathematics, .biology⟩
+  }
+
+example : weeklyChoiceFeasible impossibleThursdayGerman = false := by
   decide
 
 /-- Mathematics is available on Thursday afternoon through Julian or Jan S. -/
