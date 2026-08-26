@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Gangway Planner</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <header class="hero">
+    <div>
+      <p class="eyebrow">Gangway · Lean 4</p>
+      <h1>Dynamischer Stundenplaner</h1>
+      <p class="lede">Fachwünsche bündeln, Lehrkräfte und Räume kollisionsfrei zuweisen und den erzeugten Plan als Lean-Code exportieren.</p>
+    </div>
+    <div class="legend" aria-label="Statuslegende">
+      <span><i class="dot verified"></i> Lean-Regelmodell</span>
+      <span><i class="dot browser"></i> Browser-Validierung</span>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="panel input-panel" aria-labelledby="choices-title">
+      <div class="section-heading">
+        <div>
+          <p class="kicker">01 · Wünsche</p>
+          <h2 id="choices-title">SuS-Belegungen</h2>
+        </div>
+        <button id="add-choice" class="button secondary" type="button">+ Belegung</button>
+      </div>
+
+      <div id="choices" class="choice-list"></div>
+
+      <div class="toolbar">
+        <button id="load-reference" class="button ghost" type="button">Lean-Referenz laden</button>
+        <button id="clear-choices" class="button ghost danger" type="button">Leeren</button>
+        <button id="generate" class="button primary" type="button">Plan erzeugen</button>
+      </div>
+    </section>
+
+    <section class="panel result-panel" aria-labelledby="result-title">
+      <div class="section-heading">
+        <div>
+          <p class="kicker">02 · Ergebnis</p>
+          <h2 id="result-title">Plan</h2>
+        </div>
+        <span id="plan-status" class="status neutral">Noch nicht berechnet</span>
+      </div>
+
+      <div id="summary" class="summary-grid" aria-live="polite"></div>
+      <div id="plan" class="plan-grid empty-state">
+        <p>Füge Belegungen hinzu und erzeuge einen Plan. Gleiche Fachwünsche im selben Slot werden zu einer Lerngruppe gebündelt.</p>
+      </div>
+
+      <details id="lean-export" class="lean-export">
+        <summary>Lean-Export</summary>
+        <p>Der Browser spiegelt die Lean-Regeln. Erst <code>lake build</code> macht den exportierten Plan formal verifiziert.</p>
+        <div class="code-actions">
+          <button id="copy-lean" class="button secondary" type="button">Lean-Code kopieren</button>
+        </div>
+        <pre><code id="lean-code">-- Erzeuge zuerst einen gültigen Plan.</code></pre>
+      </details>
+    </section>
+
+    <aside class="panel rules-panel" aria-labelledby="rules-title">
+      <p class="kicker">03 · Ressourcen</p>
+      <h2 id="rules-title">Modellregeln</h2>
+      <div id="availability" class="resource-list"></div>
+      <div class="note">
+        <strong>Raumannahme</strong>
+        <p>Fachräume werden bevorzugt. Gruppen- und Einzelarbeitsraum sind flexible Ausweichräume. Der Chillraum wird nicht als regulärer Unterrichtsraum geplant.</p>
+      </div>
+      <div class="note">
+        <strong>Noch ohne Kapazitäten</strong>
+        <p>Mehrere SuS mit demselben Fach im selben Slot teilen aktuell eine Lerngruppe. Raumgrößen und maximale Gruppengrößen sind noch nicht formalisiert.</p>
+      </div>
+    </aside>
+  </main>
+
+  <template id="choice-template">
+    <article class="choice-card">
+      <div class="choice-card-head">
+        <span class="choice-number"></span>
+        <button class="icon-button remove-choice" type="button" aria-label="Belegung entfernen">×</button>
+      </div>
+      <label>
+        <span>Name / Kürzel</span>
+        <input class="student" type="text" autocomplete="off" placeholder="z. B. SuS 01">
+      </label>
+      <div class="field-grid three">
+        <label>
+          <span>Niveau</span>
+          <select class="level">
+            <option value="esa">ESA</option>
+            <option value="msa">MSA</option>
+          </select>
+        </label>
+        <label>
+          <span>Tag</span>
+          <select class="day">
+            <option value="monday">Montag</option>
+            <option value="thursday">Donnerstag</option>
+          </select>
+        </label>
+        <label>
+          <span>Block</span>
+          <select class="block">
+            <option value="morning">09:30–12:30</option>
+            <option value="afternoon">13:00–16:00</option>
+          </select>
+        </label>
+      </div>
+      <div class="subjects"></div>
+    </article>
+  </template>
+
+  <script src="./model.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>
