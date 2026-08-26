@@ -117,4 +117,47 @@ def subjectAt (choice : AttendanceChoice) (slot : Slot) : Subject :=
 
 end AttendanceChoice
 
+/--
+A complete weekly declaration for one student. The student independently chooses a block
+and three slot subjects for Monday and Thursday. The school-leaving level is shared across
+the week.
+-/
+structure WeeklyChoice where
+  student : StudentId
+  level : Level
+  mondayBlock : Block
+  mondaySubjects : SubjectSelections
+  thursdayBlock : Block
+  thursdaySubjects : SubjectSelections
+  deriving Repr, DecidableEq
+
+namespace WeeklyChoice
+
+/-- Project the Monday part of a weekly declaration to the generic day-choice model. -/
+def mondayAttendance (choice : WeeklyChoice) : AttendanceChoice :=
+  {
+    student := choice.student
+    day := .monday
+    block := choice.mondayBlock
+    level := choice.level
+    subjects := choice.mondaySubjects
+  }
+
+/-- Project the Thursday part of a weekly declaration to the generic day-choice model. -/
+def thursdayAttendance (choice : WeeklyChoice) : AttendanceChoice :=
+  {
+    student := choice.student
+    day := .thursday
+    block := choice.thursdayBlock
+    level := choice.level
+    subjects := choice.thursdaySubjects
+  }
+
+/-- Obtain the appropriate day choice from a complete weekly declaration. -/
+def attendance (choice : WeeklyChoice) : Day → AttendanceChoice
+  | .monday => choice.mondayAttendance
+  | .thursday => choice.thursdayAttendance
+
+end WeeklyChoice
+
 end Gangway
