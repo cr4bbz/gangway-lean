@@ -27,9 +27,8 @@ def beaWeekly : WeeklyChoice :=
 /--
 A room-aware reference timetable covering both example students.
 
-Each simultaneously running lesson has a different teacher and room. Students requesting
-the same subject at the same moment could share one offering because capacities are not
-modelled yet.
+Only regular teaching rooms are assigned. The individual-work and group-work rooms remain
+free for independent student use throughout every slot.
 -/
 def referencePlan : List ScheduledLesson := [
   -- Monday morning, slot 1
@@ -41,19 +40,19 @@ def referencePlan : List ScheduledLesson := [
   ⟨⟨.monday, .morning, .second, .geography, .pino⟩, .historyGeography⟩,
 
   -- Monday morning, slot 3
-  ⟨⟨.monday, .morning, .third, .mathematics, .titus⟩, .groupWork⟩,
+  ⟨⟨.monday, .morning, .third, .mathematics, .titus⟩, .art⟩,
   ⟨⟨.monday, .morning, .third, .physics, .janS⟩, .science⟩,
 
   -- Thursday afternoon, slot 1
   ⟨⟨.thursday, .afternoon, .first, .english, .marianne⟩, .english⟩,
-  ⟨⟨.thursday, .afternoon, .first, .mathematics, .julian⟩, .groupWork⟩,
+  ⟨⟨.thursday, .afternoon, .first, .mathematics, .julian⟩, .art⟩,
 
   -- Thursday afternoon, slot 2
   ⟨⟨.thursday, .afternoon, .second, .biology, .julian⟩, .science⟩,
   ⟨⟨.thursday, .afternoon, .second, .english, .marianne⟩, .english⟩,
 
   -- Thursday afternoon, slot 3
-  ⟨⟨.thursday, .afternoon, .third, .mathematics, .janS⟩, .groupWork⟩,
+  ⟨⟨.thursday, .afternoon, .third, .mathematics, .janS⟩, .art⟩,
   ⟨⟨.thursday, .afternoon, .third, .chemistry, .zara⟩, .science⟩
 ]
 
@@ -61,23 +60,29 @@ def referencePlan : List ScheduledLesson := [
 example : scheduledTimetableValidFor referencePlan [alexWeekly, beaWeekly] = true := by
   decide
 
-/-- Specialist science room accepts all three natural-science subjects. -/
-example : roomSupportsSubject .science .biology = true := by decide
-example : roomSupportsSubject .science .chemistry = true := by decide
-example : roomSupportsSubject .science .physics = true := by decide
-
-/-- Mathematics has no specialist classroom and uses a flexible work room. -/
-example : preferredRooms .mathematics = [.groupWork, .individualWork] := by
+/-- The five ordinary teaching rooms are schedulable. -/
+example : schedulableRooms = [.english, .science, .art, .german, .historyGeography] := by
   decide
 
-/-- The chill room is deliberately not a regular teaching room. -/
+/-- Work rooms are known spaces but are never valid timetable assignments. -/
+example : independentlyUsableRooms = [.individualWork, .groupWork] := by decide
+example : isSchedulableRoom .individualWork = false := by decide
+example : isSchedulableRoom .groupWork = false := by decide
+example : roomSupportsSubject .individualWork .mathematics = false := by decide
+example : roomSupportsSubject .groupWork .english = false := by decide
+
+/-- The chill room is likewise not a regular teaching room. -/
 example : roomSupportsSubject .chill .mathematics = false := by decide
 example : roomSupportsSubject .chill .english = false := by decide
 
-/-- A room cannot host two incompatible simultaneous lessons. -/
+/-- Mathematics uses only ordinary teaching rooms; work rooms are absent from candidates. -/
+example : preferredRooms .mathematics = [.art, .english, .german, .historyGeography, .science] := by
+  decide
+
+/-- A regular room cannot host two incompatible simultaneous lessons. -/
 def roomCollision : List ScheduledLesson := [
-  ⟨⟨.monday, .morning, .first, .english, .agnes⟩, .groupWork⟩,
-  ⟨⟨.monday, .morning, .first, .mathematics, .titus⟩, .groupWork⟩
+  ⟨⟨.monday, .morning, .first, .english, .agnes⟩, .art⟩,
+  ⟨⟨.monday, .morning, .first, .mathematics, .titus⟩, .art⟩
 ]
 
 example : roomCollision.all ScheduledLesson.valid = true := by decide
