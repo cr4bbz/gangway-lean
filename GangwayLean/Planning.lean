@@ -39,6 +39,11 @@ def choiceFeasible (choice : AttendanceChoice) : Bool :=
   canOffer choice.day choice.block choice.level choice.subjects.second &&
   canOffer choice.day choice.block choice.level choice.subjects.third
 
+/-- Both teaching days of a weekly declaration are locally feasible. -/
+def weeklyChoiceFeasible (choice : WeeklyChoice) : Bool :=
+  choiceFeasible choice.mondayAttendance &&
+  choiceFeasible choice.thursdayAttendance
+
 /-- One concrete lesson offered in one slot. -/
 structure LessonOffering where
   day : Day
@@ -76,6 +81,15 @@ def coversChoice (plan : List LessonOffering) (choice : AttendanceChoice) : Bool
   coversSlot plan choice .second &&
   coversSlot plan choice .third
 
+/-- Whether a plan covers both Monday and Thursday choices of one student. -/
+def coversWeeklyChoice (plan : List LessonOffering) (choice : WeeklyChoice) : Bool :=
+  coversChoice plan choice.mondayAttendance &&
+  coversChoice plan choice.thursdayAttendance
+
+/-- Whether a plan covers every supplied weekly student declaration. -/
+def coversAllChoices (plan : List LessonOffering) (choices : List WeeklyChoice) : Bool :=
+  choices.all fun choice => coversWeeklyChoice plan choice
+
 /-- Two offerings happen at the same teaching moment. -/
 def sameMoment (left right : LessonOffering) : Bool :=
   left.day == right.day &&
@@ -100,6 +114,10 @@ def noTeacherConflicts : List LessonOffering → Bool
 /-- Basic validity predicate for a concrete timetable plan. -/
 def planValid (plan : List LessonOffering) : Bool :=
   plan.all LessonOffering.valid && noTeacherConflicts plan
+
+/-- A timetable is acceptable for a cohort when it is valid and covers every weekly choice. -/
+def timetableValidFor (plan : List LessonOffering) (choices : List WeeklyChoice) : Bool :=
+  planValid plan && coversAllChoices plan choices
 
 /-- Deterministically choose the first available qualified teacher, when one exists. -/
 def chooseTeacher? (day : Day) (block : Block) (level : Level) (subject : Subject) :
@@ -128,5 +146,11 @@ def draftPlanForChoice? (choice : AttendanceChoice) : Option (List LessonOfferin
   let second ← draftOffering? choice .second
   let third ← draftOffering? choice .third
   pure [first, second, third]
+
+/-- Draft six offerings for one student's complete Monday/Thursday declaration. -/
+def draftPlanForWeeklyChoice? (choice : WeeklyChoice) : Option (List LessonOffering) := do
+  let monday ← draftPlanForChoice? choice.mondayAttendance
+  let thursday ← draftPlanForChoice? choice.thursdayAttendance
+  pure (monday ++ thursday)
 
 end Gangway
