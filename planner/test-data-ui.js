@@ -37,7 +37,7 @@
       <strong>${meta.enrolled} eingeschriebene SuS</strong>
       <span>Montag: ${monday.present} anwesend / ${monday.absent} absent (${realizedMonday} %)</span>
       <span>Donnerstag: ${thursday.present} anwesend / ${thursday.absent} absent (${realizedThursday} %)</span>
-      <span>${scenario.choices.length} Tagesbelegungen · Erwartung: ${meta.expectedSolvable ? "lösbar" : "absichtlich unlösbar"}</span>
+      <span>${scenario.choices.length} Tagesbelegungen · Erwartung: ${meta.expectation}</span>
       <small>${meta.note}</small>
     `;
   }
@@ -47,7 +47,6 @@
     if (!scenario) return;
 
     document.querySelector("#clear-choices").click();
-
     scenario.choices.forEach(choice => {
       document.querySelector("#add-choice").click();
       const cards = document.querySelectorAll("#choices .choice-card");
