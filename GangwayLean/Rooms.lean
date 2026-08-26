@@ -9,25 +9,32 @@ inductive Room where
   | art
   | german
   | historyGeography
+  | mathematics
   | individualWork
   | groupWork
-  | chill
+  | breakRoom
   deriving Repr, DecidableEq, BEq
 
 /-- Every currently known room/space. -/
 def allRooms : List Room :=
-  [.english, .science, .art, .german, .historyGeography,
-   .individualWork, .groupWork, .chill]
+  [.english, .science, .art, .german, .historyGeography, .mathematics,
+   .individualWork, .groupWork, .breakRoom]
 
-/--
-Rooms that the timetable is actually allowed to assign to a lesson.
+/-- Student capacities. Teachers are deliberately not counted. -/
+def roomCapacity : Room → Nat
+  | .english => 11
+  | .science => 12
+  | .art => 8
+  | .german => 11
+  | .historyGeography => 12
+  | .mathematics => 10
+  | .individualWork => 8
+  | .groupWork => 14
+  | .breakRoom => 6
 
-The individual-work room and group-work room are intentionally absent: students may use
-them independently during a lesson, so assigning either room to one class would model the
-school incorrectly. The chill room is likewise not a regular teaching room.
--/
+/-- Rooms that the timetable is allowed to assign to ordinary lessons. -/
 def schedulableRooms : List Room :=
-  [.english, .science, .art, .german, .historyGeography]
+  [.english, .science, .art, .german, .historyGeography, .mathematics]
 
 /-- Spaces students may use independently without a timetable assignment. -/
 def independentlyUsableRooms : List Room :=
@@ -37,88 +44,91 @@ def independentlyUsableRooms : List Room :=
 def isSchedulableRoom (room : Room) : Bool :=
   schedulableRooms.contains room
 
-/--
-Whether a room may host a subject.
-
-The five ordinary teaching rooms are treated as generally usable classrooms. Their subject
-names determine preference, not exclusivity. This keeps mathematics and overflow lessons
-schedulable without incorrectly consuming the independently usable work rooms.
--/
+/-- Subject-labelled rooms express preference, not exclusivity. -/
 def roomSupportsSubject (room : Room) (_subject : Subject) : Bool :=
   isSchedulableRoom room
 
-/--
-Preferred rooms for a subject. Subject-labelled rooms come first; the remaining ordinary
-teaching rooms are fallbacks. Work rooms and chill room never appear here.
--/
+/-- Preferred schedulable rooms for each subject. -/
 def preferredRooms : Subject → List Room
-  | .english => [.english, .german, .historyGeography, .art, .science]
-  | .biology => [.science, .art, .english, .german, .historyGeography]
-  | .chemistry => [.science, .art, .english, .german, .historyGeography]
-  | .physics => [.science, .art, .english, .german, .historyGeography]
-  | .german => [.german, .english, .historyGeography, .art, .science]
-  | .history => [.historyGeography, .german, .english, .art, .science]
-  | .geography => [.historyGeography, .german, .english, .art, .science]
-  | .politics => [.historyGeography, .german, .english, .art, .science]
-  | .mathematics => [.art, .english, .german, .historyGeography, .science]
+  | .english => [.english, .german, .historyGeography, .mathematics, .art, .science]
+  | .biology => [.science, .historyGeography, .english, .german, .mathematics, .art]
+  | .chemistry => [.science, .historyGeography, .english, .german, .mathematics, .art]
+  | .physics => [.science, .historyGeography, .english, .german, .mathematics, .art]
+  | .german => [.german, .english, .historyGeography, .mathematics, .art, .science]
+  | .history => [.historyGeography, .german, .english, .mathematics, .art, .science]
+  | .geography => [.historyGeography, .german, .english, .mathematics, .art, .science]
+  | .politics => [.historyGeography, .german, .english, .mathematics, .art, .science]
+  | .mathematics => [.mathematics, .historyGeography, .english, .german, .art, .science]
 
-/-- A lesson offering together with its assigned physical room. -/
+/-- A concrete lesson group with room and participating students. -/
 structure ScheduledLesson where
   offering : LessonOffering
   room : Room
+  students : List StudentId
   deriving Repr, DecidableEq
 
 namespace ScheduledLesson
 
-/-- A scheduled lesson needs both a valid teacher assignment and a schedulable room. -/
+/-- A scheduled group needs a valid teacher, a schedulable room, and must fit its room. -/
 def valid (lesson : ScheduledLesson) : Bool :=
-  lesson.offering.valid && roomSupportsSubject lesson.room lesson.offering.subject
+  lesson.offering.valid &&
+  roomSupportsSubject lesson.room lesson.offering.subject &&
+  decide (lesson.students.length ≤ roomCapacity lesson.room)
 
-/-- Two scheduled lessons use the same room at the same time in incompatible ways. -/
+/-- Two groups cannot occupy one room at the same moment. -/
 def roomConflict (left right : ScheduledLesson) : Bool :=
-  sameMoment left.offering right.offering &&
-  left.room == right.room &&
-  (left.offering.teacher != right.offering.teacher ||
-   left.offering.subject != right.offering.subject)
+  sameMoment left.offering right.offering && left.room == right.room
 
-/-- A student choice is satisfied by the underlying teacher/subject offering. -/
+/-- One teacher cannot lead two groups at the same moment, even for the same subject. -/
+def teacherConflict (left right : ScheduledLesson) : Bool :=
+  sameMoment left.offering right.offering && left.offering.teacher == right.offering.teacher
+
+/-- A student cannot be assigned to two groups at the same moment. -/
+def studentConflict (left right : ScheduledLesson) : Bool :=
+  sameMoment left.offering right.offering &&
+  left.students.any fun student => right.students.contains student
+
+/-- A choice is covered only when that student is actually a member of the group. -/
 def satisfies (lesson : ScheduledLesson) (choice : AttendanceChoice) (slot : Slot) : Bool :=
-  lesson.valid && lesson.offering.satisfies choice slot
+  lesson.valid &&
+  lesson.students.contains choice.student &&
+  lesson.offering.satisfies choice slot
 
 end ScheduledLesson
 
-/-- Pairwise teacher and room conflict check for a room-aware plan. -/
+/-- Pairwise teacher, room and student conflict check. -/
 def noScheduleConflicts : List ScheduledLesson → Bool
   | [] => true
   | lesson :: rest =>
       !(rest.any fun other =>
-          teacherConflict lesson.offering other.offering ||
-          ScheduledLesson.roomConflict lesson other) &&
+          ScheduledLesson.teacherConflict lesson other ||
+          ScheduledLesson.roomConflict lesson other ||
+          ScheduledLesson.studentConflict lesson other) &&
       noScheduleConflicts rest
 
-/-- Basic validity predicate for a room-aware timetable. -/
+/-- Basic validity predicate for a capacity-aware timetable. -/
 def scheduledPlanValid (plan : List ScheduledLesson) : Bool :=
   plan.all ScheduledLesson.valid && noScheduleConflicts plan
 
-/-- Whether a room-aware plan covers one requested teaching slot. -/
+/-- Whether a capacity-aware plan covers one requested teaching slot. -/
 def scheduledCoversSlot
     (plan : List ScheduledLesson) (choice : AttendanceChoice) (slot : Slot) : Bool :=
   plan.any fun lesson => lesson.satisfies choice slot
 
-/-- Whether a room-aware plan covers all three slots of one attendance choice. -/
+/-- Whether a capacity-aware plan covers all three slots of one attendance choice. -/
 def scheduledCoversChoice
     (plan : List ScheduledLesson) (choice : AttendanceChoice) : Bool :=
   scheduledCoversSlot plan choice .first &&
   scheduledCoversSlot plan choice .second &&
   scheduledCoversSlot plan choice .third
 
-/-- Whether a room-aware plan covers both days of one weekly choice. -/
+/-- Whether a capacity-aware plan covers both days of one weekly choice. -/
 def scheduledCoversWeeklyChoice
     (plan : List ScheduledLesson) (choice : WeeklyChoice) : Bool :=
   scheduledCoversChoice plan choice.mondayAttendance &&
   scheduledCoversChoice plan choice.thursdayAttendance
 
-/-- A valid room-aware timetable covering every supplied weekly student choice. -/
+/-- A valid capacity-aware timetable covering every supplied weekly student choice. -/
 def scheduledTimetableValidFor
     (plan : List ScheduledLesson) (choices : List WeeklyChoice) : Bool :=
   scheduledPlanValid plan &&
@@ -128,14 +138,14 @@ def scheduledTimetableValidFor
 def chooseRoom? (subject : Subject) : Option Room :=
   (preferredRooms subject).head?
 
-/-- Draft a room-aware lesson for one student's requested slot. -/
+/-- Draft a one-student capacity-aware lesson for one requested slot. -/
 def draftScheduledLesson?
     (choice : AttendanceChoice) (slot : Slot) : Option ScheduledLesson := do
   let offering ← draftOffering? choice slot
   let room ← chooseRoom? offering.subject
-  pure { offering := offering, room := room }
+  pure { offering := offering, room := room, students := [choice.student] }
 
-/-- Draft a simple room-aware three-slot plan for one student's day choice. -/
+/-- Draft a simple three-slot plan for one student's day choice. -/
 def draftScheduledPlanForChoice?
     (choice : AttendanceChoice) : Option (List ScheduledLesson) := do
   let first ← draftScheduledLesson? choice .first
