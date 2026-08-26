@@ -24,69 +24,84 @@ def beaWeekly : WeeklyChoice :=
     thursdaySubjects := ⟨.mathematics, .english, .chemistry⟩
   }
 
-/--
-A room-aware reference timetable covering both example students.
-
-Only regular teaching rooms are assigned. The individual-work and group-work rooms remain
-free for independent student use throughout every slot.
--/
+/-- Capacity-aware reference timetable covering both example students. -/
 def referencePlan : List ScheduledLesson := [
   -- Monday morning, slot 1
-  ⟨⟨.monday, .morning, .first, .english, .agnes⟩, .english⟩,
-  ⟨⟨.monday, .morning, .first, .german, .janT⟩, .german⟩,
+  ⟨⟨.monday, .morning, .first, .english, .agnes⟩, .english, ["Alex"]⟩,
+  ⟨⟨.monday, .morning, .first, .german, .janT⟩, .german, ["Bea"]⟩,
 
   -- Monday morning, slot 2
-  ⟨⟨.monday, .morning, .second, .biology, .zara⟩, .science⟩,
-  ⟨⟨.monday, .morning, .second, .geography, .pino⟩, .historyGeography⟩,
+  ⟨⟨.monday, .morning, .second, .biology, .zara⟩, .science, ["Alex"]⟩,
+  ⟨⟨.monday, .morning, .second, .geography, .pino⟩, .historyGeography, ["Bea"]⟩,
 
   -- Monday morning, slot 3
-  ⟨⟨.monday, .morning, .third, .mathematics, .titus⟩, .art⟩,
-  ⟨⟨.monday, .morning, .third, .physics, .janS⟩, .science⟩,
+  ⟨⟨.monday, .morning, .third, .mathematics, .titus⟩, .mathematics, ["Alex"]⟩,
+  ⟨⟨.monday, .morning, .third, .physics, .janS⟩, .science, ["Bea"]⟩,
 
   -- Thursday afternoon, slot 1
-  ⟨⟨.thursday, .afternoon, .first, .english, .marianne⟩, .english⟩,
-  ⟨⟨.thursday, .afternoon, .first, .mathematics, .julian⟩, .art⟩,
+  ⟨⟨.thursday, .afternoon, .first, .english, .marianne⟩, .english, ["Alex"]⟩,
+  ⟨⟨.thursday, .afternoon, .first, .mathematics, .julian⟩, .mathematics, ["Bea"]⟩,
 
   -- Thursday afternoon, slot 2
-  ⟨⟨.thursday, .afternoon, .second, .biology, .julian⟩, .science⟩,
-  ⟨⟨.thursday, .afternoon, .second, .english, .marianne⟩, .english⟩,
+  ⟨⟨.thursday, .afternoon, .second, .biology, .julian⟩, .science, ["Alex"]⟩,
+  ⟨⟨.thursday, .afternoon, .second, .english, .marianne⟩, .english, ["Bea"]⟩,
 
   -- Thursday afternoon, slot 3
-  ⟨⟨.thursday, .afternoon, .third, .mathematics, .janS⟩, .art⟩,
-  ⟨⟨.thursday, .afternoon, .third, .chemistry, .zara⟩, .science⟩
+  ⟨⟨.thursday, .afternoon, .third, .mathematics, .janS⟩, .mathematics, ["Alex"]⟩,
+  ⟨⟨.thursday, .afternoon, .third, .chemistry, .zara⟩, .science, ["Bea"]⟩
 ]
 
-/-- The complete reference plan is accepted by the room-aware formal model. -/
 example : scheduledTimetableValidFor referencePlan [alexWeekly, beaWeekly] = true := by
   decide
 
-/-- The five ordinary teaching rooms are schedulable. -/
-example : schedulableRooms = [.english, .science, .art, .german, .historyGeography] := by
+/-- The six ordinary teaching rooms are schedulable. -/
+example : schedulableRooms =
+    [.english, .science, .art, .german, .historyGeography, .mathematics] := by
   decide
 
-/-- Work rooms are known spaces but are never valid timetable assignments. -/
+/-- Student-only capacities supplied by the school. -/
+example : roomCapacity .english = 11 := by decide
+example : roomCapacity .science = 12 := by decide
+example : roomCapacity .art = 8 := by decide
+example : roomCapacity .german = 11 := by decide
+example : roomCapacity .historyGeography = 12 := by decide
+example : roomCapacity .mathematics = 10 := by decide
+example : roomCapacity .individualWork = 8 := by decide
+example : roomCapacity .groupWork = 14 := by decide
+example : roomCapacity .breakRoom = 6 := by decide
+
+/-- Work rooms remain independent spaces despite having known capacities. -/
 example : independentlyUsableRooms = [.individualWork, .groupWork] := by decide
 example : isSchedulableRoom .individualWork = false := by decide
 example : isSchedulableRoom .groupWork = false := by decide
-example : roomSupportsSubject .individualWork .mathematics = false := by decide
-example : roomSupportsSubject .groupWork .english = false := by decide
+example : isSchedulableRoom .breakRoom = false := by decide
 
-/-- The chill room is likewise not a regular teaching room. -/
-example : roomSupportsSubject .chill .mathematics = false := by decide
-example : roomSupportsSubject .chill .english = false := by decide
-
-/-- Mathematics uses only ordinary teaching rooms; work rooms are absent from candidates. -/
-example : preferredRooms .mathematics = [.art, .english, .german, .historyGeography, .science] := by
+/-- Mathematics now has its own schedulable room as first preference. -/
+example : preferredRooms .mathematics =
+    [.mathematics, .historyGeography, .english, .german, .art, .science] := by
   decide
 
-/-- A regular room cannot host two incompatible simultaneous lessons. -/
-def roomCollision : List ScheduledLesson := [
-  ⟨⟨.monday, .morning, .first, .english, .agnes⟩, .art⟩,
-  ⟨⟨.monday, .morning, .first, .mathematics, .titus⟩, .art⟩
+/-- Exactly ten students fit the mathematics room. -/
+def fullMathGroup : ScheduledLesson :=
+  ⟨⟨.monday, .morning, .first, .mathematics, .titus⟩, .mathematics,
+    ["S01", "S02", "S03", "S04", "S05", "S06", "S07", "S08", "S09", "S10"]⟩
+
+example : fullMathGroup.valid = true := by decide
+
+/-- Eleven students exceed the mathematics-room capacity and are rejected. -/
+def oversizedMathGroup : ScheduledLesson :=
+  ⟨⟨.monday, .morning, .first, .mathematics, .titus⟩, .mathematics,
+    ["S01", "S02", "S03", "S04", "S05", "S06", "S07", "S08", "S09", "S10", "S11"]⟩
+
+example : oversizedMathGroup.valid = false := by decide
+
+/-- One teacher may not lead two simultaneous groups, even for the same subject. -/
+def teacherDoubleBooking : List ScheduledLesson := [
+  ⟨⟨.monday, .morning, .first, .mathematics, .titus⟩, .mathematics, ["A"]⟩,
+  ⟨⟨.monday, .morning, .first, .mathematics, .titus⟩, .art, ["B"]⟩
 ]
 
-example : roomCollision.all ScheduledLesson.valid = true := by decide
-example : noScheduleConflicts roomCollision = false := by decide
-example : scheduledPlanValid roomCollision = false := by decide
+example : teacherDoubleBooking.all ScheduledLesson.valid = true := by decide
+example : noScheduleConflicts teacherDoubleBooking = false := by decide
 
 end Gangway
