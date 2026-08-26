@@ -2,7 +2,7 @@ import GangwayLean.Planning
 
 namespace Gangway
 
-/-- Physical rooms currently available at the school. -/
+/-- Physical rooms and independently usable spaces currently known at the school. -/
 inductive Room where
   | english
   | science
@@ -14,42 +14,53 @@ inductive Room where
   | chill
   deriving Repr, DecidableEq, BEq
 
-/-- Every currently known room. -/
+/-- Every currently known room/space. -/
 def allRooms : List Room :=
   [.english, .science, .art, .german, .historyGeography,
    .individualWork, .groupWork, .chill]
 
 /--
+Rooms that the timetable is actually allowed to assign to a lesson.
+
+The individual-work room and group-work room are intentionally absent: students may use
+them independently during a lesson, so assigning either room to one class would model the
+school incorrectly. The chill room is likewise not a regular teaching room.
+-/
+def schedulableRooms : List Room :=
+  [.english, .science, .art, .german, .historyGeography]
+
+/-- Spaces students may use independently without a timetable assignment. -/
+def independentlyUsableRooms : List Room :=
+  [.individualWork, .groupWork]
+
+/-- Whether the timetable may assign this room to an ordinary lesson. -/
+def isSchedulableRoom (room : Room) : Bool :=
+  schedulableRooms.contains room
+
+/--
 Whether a room may host a subject.
 
-Specialist rooms are restricted to their natural subject families. The rooms for
-individual and group work are deliberately flexible fallbacks. The chill room is not
-used as a regular teaching room in the formal model.
+The five ordinary teaching rooms are treated as generally usable classrooms. Their subject
+names determine preference, not exclusivity. This keeps mathematics and overflow lessons
+schedulable without incorrectly consuming the independently usable work rooms.
 -/
-def roomSupportsSubject : Room → Subject → Bool
-  | .english, .english => true
-  | .science, .biology => true
-  | .science, .chemistry => true
-  | .science, .physics => true
-  | .german, .german => true
-  | .historyGeography, .history => true
-  | .historyGeography, .geography => true
-  | .historyGeography, .politics => true
-  | .individualWork, _ => true
-  | .groupWork, _ => true
-  | _, _ => false
+def roomSupportsSubject (room : Room) (_subject : Subject) : Bool :=
+  isSchedulableRoom room
 
-/-- Preferred rooms, ordered from specialist room to flexible fallback. -/
+/--
+Preferred rooms for a subject. Subject-labelled rooms come first; the remaining ordinary
+teaching rooms are fallbacks. Work rooms and chill room never appear here.
+-/
 def preferredRooms : Subject → List Room
-  | .english => [.english, .groupWork, .individualWork]
-  | .biology => [.science, .groupWork, .individualWork]
-  | .chemistry => [.science, .groupWork, .individualWork]
-  | .physics => [.science, .groupWork, .individualWork]
-  | .german => [.german, .groupWork, .individualWork]
-  | .history => [.historyGeography, .groupWork, .individualWork]
-  | .geography => [.historyGeography, .groupWork, .individualWork]
-  | .politics => [.historyGeography, .groupWork, .individualWork]
-  | .mathematics => [.groupWork, .individualWork]
+  | .english => [.english, .german, .historyGeography, .art, .science]
+  | .biology => [.science, .art, .english, .german, .historyGeography]
+  | .chemistry => [.science, .art, .english, .german, .historyGeography]
+  | .physics => [.science, .art, .english, .german, .historyGeography]
+  | .german => [.german, .english, .historyGeography, .art, .science]
+  | .history => [.historyGeography, .german, .english, .art, .science]
+  | .geography => [.historyGeography, .german, .english, .art, .science]
+  | .politics => [.historyGeography, .german, .english, .art, .science]
+  | .mathematics => [.art, .english, .german, .historyGeography, .science]
 
 /-- A lesson offering together with its assigned physical room. -/
 structure ScheduledLesson where
@@ -59,7 +70,7 @@ structure ScheduledLesson where
 
 namespace ScheduledLesson
 
-/-- A scheduled lesson needs both a valid teacher assignment and a suitable room. -/
+/-- A scheduled lesson needs both a valid teacher assignment and a schedulable room. -/
 def valid (lesson : ScheduledLesson) : Bool :=
   lesson.offering.valid && roomSupportsSubject lesson.room lesson.offering.subject
 
@@ -113,7 +124,7 @@ def scheduledTimetableValidFor
   scheduledPlanValid plan &&
   choices.all fun choice => scheduledCoversWeeklyChoice plan choice
 
-/-- First preferred room for a subject, if one exists. -/
+/-- First preferred schedulable room for a subject, if one exists. -/
 def chooseRoom? (subject : Subject) : Option Room :=
   (preferredRooms subject).head?
 
