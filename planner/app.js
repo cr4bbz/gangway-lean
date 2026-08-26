@@ -35,7 +35,6 @@
   function addChoice(data = {}) {
     const card = template.content.firstElementChild.cloneNode(true);
     card.dataset.choiceId = String(++choiceSequence);
-
     card.querySelector(".student").value = data.student || "";
     card.querySelector(".level").value = data.level || "esa";
     card.querySelector(".day").value = data.day || "monday";
@@ -48,8 +47,7 @@
       label.className = "subject-field";
       label.innerHTML = `
         <span>Slot ${slotIndex + 1} · <b class="slot-time"></b></span>
-        <select class="subject" data-slot="${slotIndex}">${subjectOptions(subject)}</select>
-      `;
+        <select class="subject" data-slot="${slotIndex}">${subjectOptions(subject)}</select>`;
       subjectRoot.appendChild(label);
     });
 
@@ -58,12 +56,10 @@
       renumberChoices();
       invalidateResult();
     });
-
     card.querySelector(".block").addEventListener("change", () => {
       updateSlotLabels(card);
       invalidateResult();
     });
-
     card.querySelectorAll("input, select").forEach(control => {
       control.addEventListener("input", invalidateResult);
       control.addEventListener("change", invalidateResult);
@@ -112,7 +108,7 @@
     setStatus("neutral", "Noch nicht berechnet");
     summaryRoot.innerHTML = "";
     planRoot.className = "plan-grid empty-state";
-    planRoot.innerHTML = "<p>Füge Belegungen hinzu und erzeuge einen Plan. Gleiche Fachwünsche im selben Slot werden zu einer Lerngruppe gebündelt.</p>";
+    planRoot.innerHTML = "<p>Füge Belegungen hinzu und erzeuge einen Plan. Fachwünsche werden nach Raumkapazität auf Lerngruppen verteilt.</p>";
     leanCode.textContent = "-- Erzeuge zuerst einen gültigen Plan.";
     leanExport.open = false;
   }
@@ -128,34 +124,38 @@
   function renderSummary(result, choices) {
     const teachers = new Set(result.assignments.map(item => item.teacher));
     const rooms = new Set(result.assignments.map(item => item.room));
+    const maxFill = result.assignments.length
+      ? Math.max(...result.assignments.map(item => item.students.length / model.ROOMS[item.room].capacity))
+      : 0;
     summaryRoot.innerHTML = [
       summaryCard(choices.length, "Belegungen"),
       summaryCard(result.assignments.length, "Lerngruppen"),
       summaryCard(teachers.size, "Lehrkräfte genutzt"),
-      summaryCard(rooms.size, "Räume genutzt")
+      summaryCard(`${Math.round(maxFill * 100)} %`, "höchste Raumauslastung")
     ].join("");
   }
 
   function renderAssignmentCard(assignment) {
-    const students = [...new Set(assignment.students)].join(", ");
+    const students = assignment.students.join(", ");
+    const capacity = model.ROOMS[assignment.room].capacity;
+    const levels = [...new Set(assignment.levels.map(level => level.toUpperCase()))].join(" / ");
     return `
       <article class="lesson-card">
         <div class="lesson-title">
           <strong>${model.SUBJECT_LABEL[assignment.subject]}</strong>
-          <span>${assignment.levels.map(level => level.toUpperCase()).filter((value, index, list) => list.indexOf(value) === index).join(" / ")}</span>
+          <span>${levels}</span>
         </div>
         <dl>
           <div><dt>Lehrkraft</dt><dd>${model.TEACHERS[assignment.teacher].label}</dd></div>
           <div><dt>Raum</dt><dd>${model.ROOMS[assignment.room].label}</dd></div>
+          <div><dt>Kapazität</dt><dd>${assignment.students.length} / ${capacity} SuS</dd></div>
           <div><dt>SuS</dt><dd>${students}</dd></div>
         </dl>
-      </article>
-    `;
+      </article>`;
   }
 
   function renderPlan(result) {
     planRoot.className = "plan-grid";
-
     if (!result.ok) {
       planRoot.innerHTML = result.failures.map(failure => {
         const block = model.BLOCKS[failure.block];
@@ -164,20 +164,16 @@
           const teachers = task.teacherCandidates.length
             ? task.teacherCandidates.map(id => model.TEACHERS[id].label).join(", ")
             : "keine verfügbare Lehrkraft";
-          const rooms = task.roomCandidates.length
-            ? task.roomCandidates.map(id => model.ROOMS[id].label).join(", ")
-            : "kein planbarer Raum";
-          return `<li><strong>${model.SUBJECT_LABEL[task.subject]}</strong>: ${teachers}; Räume: ${rooms}</li>`;
+          const rooms = task.roomCandidates.map(id => `${model.ROOMS[id].label} (${model.ROOMS[id].capacity})`).join(", ");
+          return `<li><strong>${model.SUBJECT_LABEL[task.subject]} · ${task.students.length} SuS</strong>: Lehrkräfte ${teachers}; Räume ${rooms || "keine"}</li>`;
         }).join("");
-
         return `
           <article class="failure-card">
             <p class="kicker">Nicht lösbarer Moment</p>
             <h3>${model.DAYS[failure.day].label} · ${block.label} · ${time}</h3>
-            <p>Für alle gleichzeitig gewünschten Fächer konnte keine kollisionsfreie Lehrer-/Raumkombination gefunden werden.</p>
+            <p>Lehrkräfte, Räume und deren SuS-Kapazitäten reichen für diese gleichzeitigen Wünsche nicht in einer kollisionsfreien Kombination aus.</p>
             <ul>${issues}</ul>
-          </article>
-        `;
+          </article>`;
       }).join("");
       return;
     }
@@ -188,22 +184,17 @@
       if (!grouped.has(key)) grouped.set(key, []);
       grouped.get(key).push(assignment);
     });
-
-    planRoot.innerHTML = [...grouped.entries()].map(([, assignments]) => {
+    planRoot.innerHTML = [...grouped.values()].map(assignments => {
       const first = assignments[0];
       const block = model.BLOCKS[first.block];
       return `
         <section class="moment-card">
           <header>
-            <div>
-              <p class="kicker">${model.DAYS[first.day].label} · ${block.label}</p>
-              <h3>Slot ${first.slotIndex + 1}</h3>
-            </div>
+            <div><p class="kicker">${model.DAYS[first.day].label} · ${block.label}</p><h3>Slot ${first.slotIndex + 1}</h3></div>
             <time>${block.slots[first.slotIndex]}</time>
           </header>
           <div class="lesson-list">${assignments.map(renderAssignmentCard).join("")}</div>
-        </section>
-      `;
+        </section>`;
     }).join("");
   }
 
@@ -218,18 +209,17 @@
 
   function leanLesson(assignment) {
     const slot = model.SLOT_IDS[assignment.slotIndex];
-    return `  ⟨⟨.${assignment.day}, .${assignment.block}, .${slot}, .${assignment.subject}, .${assignment.teacher}⟩, .${assignment.room}⟩`;
+    const students = `[${assignment.students.map(leanString).join(", ")}]`;
+    return `  ⟨⟨.${assignment.day}, .${assignment.block}, .${slot}, .${assignment.subject}, .${assignment.teacher}⟩, .${assignment.room}, ${students}⟩`;
   }
 
   function buildLeanExport(result, choices) {
     if (!result.ok) return "-- Der aktuelle Browser-Plan ist nicht konfliktfrei und kann nicht exportiert werden.";
-
     const definitions = choices.map(leanChoice).join("\n\n");
     const lessons = result.assignments.map(leanLesson).join(",\n");
     const coverageChecks = choices.map((_, index) =>
       `example : scheduledCoversChoice plannerPlan plannerChoice${index} = true := by decide`
     ).join("\n");
-
     return `import GangwayLean.Rooms\n\nnamespace Gangway\n\n${definitions}\n\ndef plannerPlan : List ScheduledLesson := [\n${lessons}\n]\n\nexample : scheduledPlanValid plannerPlan = true := by decide\n${coverageChecks}\n\nend Gangway\n`;
   }
 
@@ -241,20 +231,13 @@
       planRoot.innerHTML = "<p>Mindestens eine Belegung wird benötigt.</p>";
       return;
     }
-
     const result = model.generatePlan(choices);
     latestResult = result;
     latestChoices = choices;
-
     renderSummary(result, choices);
     renderPlan(result);
     leanCode.textContent = buildLeanExport(result, choices);
-
-    if (result.ok) {
-      setStatus("success", "Kollisionsfrei im Browsermodell");
-    } else {
-      setStatus("error", `${result.failures.length} Konflikt${result.failures.length === 1 ? "" : "e"}`);
-    }
+    setStatus(result.ok ? "success" : "error", result.ok ? "Kapazitäts- und kollisionsfrei" : `${result.failures.length} unlösbare${result.failures.length === 1 ? "r" : ""} Moment${result.failures.length === 1 ? "" : "e"}`);
   }
 
   function renderAvailability() {
@@ -262,32 +245,19 @@
       const [day, block] = key.split("|");
       const teacherList = teacherIds.map(id => {
         const teacher = model.TEACHERS[id];
-        const subjects = teacher.subjects.map(subject => model.SUBJECT_LABEL[subject]).join(" / ");
-        return `<li><strong>${teacher.label}</strong><span>${subjects}</span></li>`;
+        return `<li><strong>${teacher.label}</strong><span>${teacher.subjects.map(subject => model.SUBJECT_LABEL[subject]).join(" / ")}</span></li>`;
       }).join("");
-
-      return `
-        <details>
-          <summary>${model.DAYS[day].label} · ${model.BLOCKS[block].label}</summary>
-          <ul>${teacherList}</ul>
-        </details>
-      `;
+      return `<details><summary>${model.DAYS[day].label} · ${model.BLOCKS[block].label}</summary><ul>${teacherList}</ul></details>`;
     }).join("");
 
-    const rooms = Object.entries(model.ROOMS).map(([id, room]) => {
-      let tag = "nicht verplant";
-      if (room.mode === "scheduled") tag = "planbar";
-      if (room.mode === "independent") tag = "frei nutzbar · nicht verplant";
-      if (room.mode === "nonTeaching") tag = "kein Unterrichtsraum";
+    const rooms = Object.values(model.ROOMS).map(room => {
+      let tag = `${room.capacity} SuS · kein Unterrichtsraum`;
+      if (room.mode === "scheduled") tag = `${room.capacity} SuS · planbar`;
+      if (room.mode === "independent") tag = `${room.capacity} SuS · frei nutzbar · nicht verplant`;
       return `<li><strong>${room.label}</strong><span>${tag}</span></li>`;
     }).join("");
 
-    availabilityRoot.innerHTML = `
-      <h3>Lehrkräfte je Block</h3>
-      ${blocks}
-      <h3>Räume</h3>
-      <ul>${rooms}</ul>
-    `;
+    availabilityRoot.innerHTML = `<h3>Lehrkräfte je Block</h3>${blocks}<h3>Räume · SuS-Kapazität</h3><ul>${rooms}</ul>`;
   }
 
   async function copyLean() {
@@ -311,7 +281,6 @@
   document.querySelector("#copy-lean").addEventListener("click", copyLean);
 
   window.GangwayPlannerUI = { addChoice, clearChoices, generate };
-
   renderAvailability();
   loadReference();
 })();
