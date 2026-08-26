@@ -88,7 +88,8 @@ structure SubjectSelections where
 
 namespace SubjectSelections
 
-def at (subjects : SubjectSelections) : Slot → Subject
+/-- Read the subject selected for one of the three slots. -/
+def get (subjects : SubjectSelections) : Slot → Subject
   | .first => subjects.first
   | .second => subjects.second
   | .third => subjects.third
@@ -112,7 +113,7 @@ structure AttendanceChoice where
 namespace AttendanceChoice
 
 def subjectAt (choice : AttendanceChoice) (slot : Slot) : Subject :=
-  choice.subjects.at slot
+  choice.subjects.get slot
 
 end AttendanceChoice
 
