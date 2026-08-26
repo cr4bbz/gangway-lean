@@ -1,0 +1,10 @@
+name = "GangwayLean"
+version = "0.1.0"
+defaultTargets = ["gangwayLean"]
+
+[[lean_lib]]
+name = "GangwayLean"
+
+[[lean_exe]]
+name = "gangwayLean"
+root = "Main"
