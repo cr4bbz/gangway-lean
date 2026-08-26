@@ -1,0 +1,6 @@
+name = "gangway-lean"
+version = "0.1.0"
+defaultTargets = ["GangwayLean"]
+
+[[lean_lib]]
+name = "GangwayLean"
