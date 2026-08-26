@@ -54,26 +54,29 @@ window.GangwayModel = (() => {
   };
 
   const ROOMS = {
-    english: { label: "Englisch" },
-    science: { label: "Biologie / Physik / Chemie" },
-    art: { label: "Kunst" },
-    german: { label: "Deutsch" },
-    historyGeography: { label: "Geschichte / Geographie" },
-    individualWork: { label: "Einzelarbeit" },
-    groupWork: { label: "Gruppenarbeit" },
-    chill: { label: "Chillraum" }
+    english: { label: "Englisch", mode: "scheduled" },
+    science: { label: "Biologie / Physik / Chemie", mode: "scheduled" },
+    art: { label: "Kunst", mode: "scheduled" },
+    german: { label: "Deutsch", mode: "scheduled" },
+    historyGeography: { label: "Geschichte / Geographie", mode: "scheduled" },
+    individualWork: { label: "Einzelarbeit", mode: "independent" },
+    groupWork: { label: "Gruppenarbeit", mode: "independent" },
+    chill: { label: "Chillraum", mode: "nonTeaching" }
   };
 
+  const SCHEDULABLE_ROOMS = ["english", "science", "art", "german", "historyGeography"];
+  const INDEPENDENT_ROOMS = ["individualWork", "groupWork"];
+
   const PREFERRED_ROOMS = {
-    english: ["english", "groupWork", "individualWork"],
-    biology: ["science", "groupWork", "individualWork"],
-    chemistry: ["science", "groupWork", "individualWork"],
-    physics: ["science", "groupWork", "individualWork"],
-    german: ["german", "groupWork", "individualWork"],
-    history: ["historyGeography", "groupWork", "individualWork"],
-    geography: ["historyGeography", "groupWork", "individualWork"],
-    politics: ["historyGeography", "groupWork", "individualWork"],
-    mathematics: ["groupWork", "individualWork"]
+    english: ["english", "german", "historyGeography", "art", "science"],
+    biology: ["science", "art", "english", "german", "historyGeography"],
+    chemistry: ["science", "art", "english", "german", "historyGeography"],
+    physics: ["science", "art", "english", "german", "historyGeography"],
+    german: ["german", "english", "historyGeography", "art", "science"],
+    history: ["historyGeography", "german", "english", "art", "science"],
+    geography: ["historyGeography", "german", "english", "art", "science"],
+    politics: ["historyGeography", "german", "english", "art", "science"],
+    mathematics: ["art", "english", "german", "historyGeography", "science"]
   };
 
   function availabilityKey(day, block) {
@@ -248,6 +251,8 @@ window.GangwayModel = (() => {
     TEACHERS,
     AVAILABILITY,
     ROOMS,
+    SCHEDULABLE_ROOMS,
+    INDEPENDENT_ROOMS,
     PREFERRED_ROOMS,
     REFERENCE_CHOICES,
     eligibleTeachers,
