@@ -1,37 +1,61 @@
 # Synthetische Planner-Testdaten
 
-Die Testdaten simulieren Tagesbelegungen für eine Schule mit bis zu 100 eingeschriebenen SuS. Abwesenheit wird pro Unterrichtstag deterministisch erzeugt, damit CI und Browser immer dieselben Fälle sehen.
+Die Testdaten simulieren Tagesbelegungen für bis zu 100 eingeschriebene SuS. Abwesenheit wird pro Unterrichtstag deterministisch erzeugt, damit CI und Browser immer dieselben Fälle sehen.
+
+Seit der Einführung realer Raumkapazitäten sind die großen Szenarien bewusst **Kapazitäts-Stresstests**. Ein Fehlschlag bedeutet nicht, dass 75 reale SuS grundsätzlich unplanbar sind: Die Fachwünsche sind synthetisch. Er zeigt, dass genau diese reproduzierbare Fach- und Blockverteilung die vorhandene Parallelkapazität überschreitet.
+
+## Raumkapazitäten
+
+Alle Werte zählen ausschließlich SuS; Lehrkräfte zählen nicht mit.
+
+| Raum | SuS | Planbar? |
+|---|---:|---|
+| Englisch | 11 | ja |
+| Biologie / Physik / Chemie | 12 | ja |
+| Kunst | 8 | ja |
+| Deutsch | 11 | ja |
+| Geschichte / Geographie | 12 | ja |
+| Mathematik | 10 | ja |
+| Einzelarbeit | 8 | nein, frei nutzbar |
+| Gruppenarbeit | 14 | nein, frei nutzbar |
+| Pausenraum | 6 | nein |
 
 ## Szenarien
 
-| Szenario | Eingeschrieben | Abwesenheit | Besonderheit | Erwartung |
-|---|---:|---:|---|---|
-| `cohort-25` | 25 | 12 % | Smoke Test | lösbar |
-| `cohort-50` | 50 | 12 % | mittlere Kohorte | lösbar |
-| `cohort-75-low` | 75 | ca. 10 % | reale Größe, niedrige Abwesenheit | lösbar |
-| `cohort-75-mid` | 75 | 12 % | reale Größe, mittlere Abwesenheit | lösbar |
-| `cohort-75-high` | 75 | ca. 15 % | reale Größe, hohe Abwesenheit | lösbar |
-| `cohort-75-morning-heavy` | 75 | 12 % | 70 % der Anwesenden vormittags | lösbar |
-| `cohort-100` | 100 | 12 % | Wachstumstest | lösbar |
-| `cohort-75-negative` | 75 | 12 % | absichtlich Chemie Donnerstagvormittag | unlösbar |
+| Szenario | Eingeschrieben | Abwesenheit | Erwartung mit Kapazitäten |
+|---|---:|---:|---|
+| `cohort-25` | 25 | 12 % | lösbar |
+| `cohort-50` | 50 | 12 % | lösbar |
+| `cohort-75-low` | 75 | ca. 10 % | Kapazitätsengpass |
+| `cohort-75-mid` | 75 | 12 % | Kapazitätsengpass |
+| `cohort-75-high` | 75 | ca. 15 % | Kapazitätsengpass |
+| `cohort-75-morning-heavy` | 75 | 12 %, 70 % vormittags | Kapazitätsengpass |
+| `cohort-100` | 100 | 12 % | mehrere Kapazitätsengpässe |
+| `cohort-75-negative` | 75 | 12 % | zusätzlich absichtlich fachlich unlösbar |
 
-Bei 75 eingeschriebenen SuS ergeben sich derzeit:
+Bei 75 eingeschriebenen SuS ergeben sich:
 
-- ca. 10 %: 67 Anwesende pro Tag, 134 Tagesbelegungen insgesamt,
-- 12 %: 66 Anwesende pro Tag, 132 Tagesbelegungen insgesamt,
-- ca. 15 %: 64 Anwesende pro Tag, 128 Tagesbelegungen insgesamt.
+- ca. 10 %: 67 Anwesende pro Tag,
+- 12 %: 66 Anwesende pro Tag,
+- ca. 15 %: 64 Anwesende pro Tag.
 
-Die Abwesenheiten für Montag und Donnerstag werden getrennt bestimmt. Eine Tagesbelegung entspricht daher einem tatsächlich anwesenden SuS an genau einem Unterrichtstag.
+## Beobachteter Engpass bei 75 SuS
 
-## Warum die regulären Datensätze lösbar sein sollen
+Der 12-%-Datensatz erzeugt am Montagvormittag beispielsweise gleichzeitig:
 
-Die Fächer werden aus blockabhängigen Testpaletten gezogen, deren vollständige Parallelbelegung mit dem aktuellen Lehrer- und Raummodell möglich ist. Dadurch testen die Datensätze Skalierung, Gruppierung, Blockverteilung und Abwesenheit, ohne zufällige fachliche Unmöglichkeit einzubauen.
+- 17 Biologie-Wünsche bei nur einer anwesenden Bio-Lehrkraft,
+- 16 Physik-Wünsche bei nur einer anwesenden Physik-Lehrkraft.
 
-Der Negativtest injiziert dagegen bewusst einen Fachwunsch, der nicht erfüllt werden kann: Chemie am Donnerstagvormittag. CI erwartet dort einen Fehler und prüft, dass die Diagnose die fehlende Chemie-Lehrkraft sichtbar macht.
+Da der größte reguläre Unterrichtsraum 12 SuS fasst, kann eine einzelne Lehrkraft diese Fachgruppe nicht auf zwei Räume aufteilen. Der Planner lehnt diesen Moment deshalb korrekt ab.
 
-## Im Browser
+Das ist gerade der Zweck dieser Testdaten: nicht eine künstlich immer lösbare Verteilung zu erzeugen, sondern sichtbar zu machen, ab welcher Kombination aus Fachnachfrage, Lehrerzahl und Raumkapazität das System kippt.
 
-Im Planner erscheint oberhalb der manuellen Belegungen ein Bereich **Synthetische Kohorte laden**. Szenario auswählen, `Testdaten laden` anklicken und der Plan wird unmittelbar berechnet.
+## Automatische Gruppenaufteilung
+
+Wenn mehrere geeignete Lehrkräfte verfügbar sind, darf der Solver eine Fachgruppe teilen. Ein eigener Modelltest prüft etwa:
+
+- 18 gleichzeitige Mathematik-SuS am Montagvormittag werden auf zwei Gruppen verteilt,
+- 25 gleichzeitige Mathematik-SuS sind dort nicht lösbar, weil nur zwei Mathe-Lehrkräfte verfügbar sind und zwei reguläre Räume zusammen höchstens 24 SuS aufnehmen können.
 
 ## In CI / Codespace
 
@@ -39,12 +63,11 @@ Im Planner erscheint oberhalb der manuellen Belegungen ein Bereich **Synthetisch
 node planner/test-cohorts.js
 ```
 
-Der Test prüft für jedes Szenario:
+Der Test prüft:
 
-- erwartete Lösbarkeit bzw. erwarteten Fehler,
-- korrekte Anwesenheitszahlen,
+- die erwarteten Lösbarkeits-/Kapazitätszustände,
+- jede erzeugte Gruppe gegen ihre Raumkapazität,
 - keine Lehrer-Doppelbelegung,
 - keine Raum-Doppelbelegung,
-- explizite Diagnose des Negativtests.
-
-Die Messzeit des Solvers wird mit ausgegeben, ist aber derzeit bewusst kein harter CI-Grenzwert, damit Runner-Schwankungen keinen falschen Fehler erzeugen.
+- keine Nutzung von Einzel- oder Gruppenarbeitsraum als Stundenplanraum,
+- die absichtlich fehlende Chemie-Lehrkraft im Negativtest.
