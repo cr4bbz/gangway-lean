@@ -13,7 +13,7 @@
     <div>
       <p class="eyebrow">Gangway · Lean 4</p>
       <h1>Dynamischer Stundenplaner</h1>
-      <p class="lede">Fachwünsche bündeln, Lehrkräfte und Räume kollisionsfrei zuweisen und den erzeugten Plan als Lean-Code exportieren.</p>
+      <p class="lede">Fachwünsche bündeln, Lehrkräfte und reguläre Unterrichtsräume kollisionsfrei zuweisen und den erzeugten Plan als Lean-Code exportieren.</p>
     </div>
     <div class="legend" aria-label="Statuslegende">
       <span><i class="dot verified"></i> Lean-Regelmodell</span>
@@ -82,8 +82,12 @@
       <h2 id="rules-title">Modellregeln</h2>
       <div id="availability" class="resource-list"></div>
       <div class="note">
-        <strong>Raumannahme</strong>
-        <p>Fachräume werden bevorzugt. Gruppen- und Einzelarbeitsraum sind flexible Ausweichräume. Der Chillraum wird nicht als regulärer Unterrichtsraum geplant.</p>
+        <strong>Raumlogik</strong>
+        <p>Nur Englisch, Naturwissenschaften, Kunst, Deutsch und Geschichte/Geographie werden als Unterrichtsräume verplant. Fachnamen bestimmen die Präferenz, nicht eine harte Exklusivität.</p>
+      </div>
+      <div class="note">
+        <strong>Freie Arbeitsräume</strong>
+        <p>Einzelarbeitsraum und Gruppenraum werden niemals einer Lerngruppe zugewiesen. SuS können sie im Verlauf einer Stunde unabhängig nutzen. Der Chillraum ist ebenfalls kein regulärer Unterrichtsraum.</p>
       </div>
       <div class="note">
         <strong>Noch ohne Kapazitäten</strong>
