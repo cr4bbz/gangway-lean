@@ -1,8 +1,8 @@
 (() => {
   const DAYS = ["monday", "thursday"];
 
-  // These palettes are deliberately chosen so that the current teacher/room model can
-  // schedule the complete set of subjects in parallel for the corresponding block.
+  // Palettes avoid subjects that are impossible solely because no qualified teacher is present.
+  // Capacity constraints may still make larger cohorts intentionally fail.
   const FEASIBLE_PALETTES = {
     "monday|morning": ["english", "german", "biology", "mathematics", "geography", "physics"],
     "monday|afternoon": ["english", "history", "mathematics", "chemistry", "geography"],
@@ -45,6 +45,7 @@
       morningShare = 0.5,
       seed = 1,
       expectedSolvable = true,
+      expectation = expectedSolvable ? "lösbar" : "Kapazitätsengpass erwartet",
       note = ""
     } = config;
 
@@ -95,6 +96,7 @@
         targetAbsenceRate: absenceRate,
         morningShare,
         expectedSolvable,
+        expectation,
         seed,
         note,
         attendance
@@ -110,7 +112,7 @@
       students: 25,
       absenceRate: 0.12,
       seed: 25012,
-      note: "Kleine Smoke-Test-Kohorte."
+      note: "Kleine Kohorte; unter den aktuellen Kapazitätsregeln lösbar."
     },
     {
       id: "cohort-50",
@@ -118,7 +120,7 @@
       students: 50,
       absenceRate: 0.12,
       seed: 50012,
-      note: "Mittlere Kohorte."
+      note: "Mittlere Kohorte; unter den aktuellen Kapazitätsregeln lösbar."
     },
     {
       id: "cohort-75-low",
@@ -126,7 +128,8 @@
       students: 75,
       absenceRate: 0.10,
       seed: 75100,
-      note: "Reale Schulgröße bei niedriger Abwesenheit."
+      expectedSolvable: false,
+      note: "Synthetische reale Schulgröße: einzelne Fächer übersteigen die Kapazität einer allein verfügbaren Fachlehrkraft."
     },
     {
       id: "cohort-75-mid",
@@ -134,7 +137,8 @@
       students: 75,
       absenceRate: 0.12,
       seed: 75120,
-      note: "Reale Schulgröße, mittlere Abwesenheitsannahme."
+      expectedSolvable: false,
+      note: "Synthetische reale Schulgröße: Kapazitätsengpässe insbesondere am Montagvormittag."
     },
     {
       id: "cohort-75-high",
@@ -142,7 +146,8 @@
       students: 75,
       absenceRate: 0.15,
       seed: 75150,
-      note: "Reale Schulgröße bei hoher typischer Abwesenheit."
+      expectedSolvable: false,
+      note: "Auch bei höherer Abwesenheit erzeugt diese deterministische Fachverteilung noch Fachgruppen über der verfügbaren Parallelkapazität."
     },
     {
       id: "cohort-75-morning-heavy",
@@ -151,7 +156,8 @@
       absenceRate: 0.12,
       morningShare: 0.70,
       seed: 75700,
-      note: "Belastungstest mit starker Vormittagskonzentration."
+      expectedSolvable: false,
+      note: "Starker Vormittags-Stresstest; mehrere Fachgruppen überschreiten die mögliche Parallelkapazität."
     },
     {
       id: "cohort-100",
@@ -159,14 +165,13 @@
       students: 100,
       absenceRate: 0.12,
       seed: 100012,
-      note: "Überlast-/Wachstumstest oberhalb der realen Schulgröße."
+      expectedSolvable: false,
+      note: "Wachstums-Stresstest oberhalb der realen Schulgröße; mehrere Kapazitätsengpässe werden erwartet."
     }
   ];
 
   const TEST_SCENARIOS = SCENARIO_CONFIGS.map(buildScenario);
 
-  // Fault injection: same realistic cohort, but one Thursday-morning request asks for
-  // chemistry although no chemistry teacher is available in that block.
   const negativeBase = buildScenario({
     id: "cohort-75-negative",
     label: "75 SuS · Negativtest (Chemie Do VM)",
@@ -174,7 +179,8 @@
     absenceRate: 0.12,
     seed: 75999,
     expectedSolvable: false,
-    note: "Absichtlich unlösbar: Chemie am Donnerstagvormittag."
+    expectation: "absichtlich fachlich unlösbar",
+    note: "Zusätzlich zu möglichen Kapazitätsengpässen wird Chemie am Donnerstagvormittag injiziert, obwohl dort keine Chemie-Lehrkraft anwesend ist."
   });
   const injected = negativeBase.choices.find(choice => choice.day === "thursday" && choice.block === "morning");
   if (injected) injected.subjects[0] = "chemistry";
