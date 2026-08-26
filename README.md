@@ -12,12 +12,12 @@ Formale Lean-4-Grundlage und interaktiver Browser-Planer für den Unterricht an 
 - Für einen gewählten Block werden drei Fachwünsche angegeben, jeweils einer pro Slot.
 - Dasselbe Fach darf in allen drei Slots gewählt werden.
 - `WeeklyChoice` bündelt die unabhängige Block- und Fachwahl für Montag und Donnerstag.
-- Lehrkräfte werden mit ihren Fachqualifikationen und ihrer Verfügbarkeit je Tag/Block modelliert.
-- Alle hinterlegten Lehrkräfte können sowohl **ESA**- als auch **MSA**-SuS unterrichten.
-- Reguläre Unterrichtsräume sind eigene planbare Ressourcen; Lehrer- und Raumkollisionen werden verhindert.
-- **Einzelarbeitsraum und Gruppenraum werden nicht verplant.** SuS können sie im Verlauf einer Stunde unabhängig nutzen.
-- Ein Lean-verifizierter Referenzplan zeigt eine vollständige Raum-/Lehrerzuweisung für zwei Beispiel-SuS.
-- Der HTML-Planer kann synthetische Kohorten bis 100 SuS laden und sucht per Backtracking eine kollisionsfreie Lehrer-/Raumkombination.
+- Lehrkräfte werden mit Fachqualifikation und Verfügbarkeit je Tag/Block modelliert.
+- Alle hinterlegten Lehrkräfte können ESA- und MSA-SuS unterrichten.
+- Reguläre Unterrichtsräume sind exklusive Stundenplanressourcen mit **SuS-Kapazität**.
+- Einzelarbeitsraum und Gruppenraum werden **nicht verplant** und bleiben für unabhängige Nutzung frei.
+- Der Pausenraum ist ebenfalls kein Unterrichtsraum.
+- Zu große Fachgruppen werden nur geteilt, wenn zusätzliche passende Lehrkräfte und reguläre Räume gleichzeitig verfügbar sind.
 
 ## Lehrkräfte
 
@@ -43,127 +43,164 @@ Formale Lean-4-Grundlage und interaktiver Browser-Planer für den Unterricht an 
 | Donnerstag | Vormittag | Phil, Vicky, Jan T., Titus, Jan S. |
 | Donnerstag | Nachmittag | Julian, Marianne, Zara, Jan S. |
 
-## Räume und Raumsemantik
+## Räume, Kapazität und Semantik
 
-| Raum | Formale Nutzung |
-|---|---|
-| Englisch | **planbarer Unterrichtsraum**, bevorzugt für Englisch |
-| Biologie / Physik / Chemie | **planbarer Unterrichtsraum**, bevorzugt für Naturwissenschaften |
-| Kunst | **planbarer Unterrichtsraum** |
-| Deutsch | **planbarer Unterrichtsraum**, bevorzugt für Deutsch |
-| Geschichte / Geographie | **planbarer Unterrichtsraum**, bevorzugt für Geschichte, Geographie und Politik |
-| Einzelarbeitsraum | **frei nutzbar, nicht verplanbar** |
-| Gruppenraum | **frei nutzbar, nicht verplanbar** |
-| Chillraum | **kein regulärer Unterrichtsraum** |
+Alle Kapazitäten zählen **nur SuS**. Lehrkräfte zählen nicht mit.
 
-Die fünf regulären Unterrichtsräume sind grundsätzlich fachübergreifend nutzbar. Die Fachnamen steuern lediglich die Präferenzreihenfolge des Solvers. Dadurch kann zum Beispiel Mathematik in einem regulären Raum stattfinden, ohne Einzelarbeits- oder Gruppenraum zu blockieren.
+| Raum | Kapazität | Nutzung |
+|---|---:|---|
+| Englisch | 11 | planbarer Unterrichtsraum |
+| Biologie / Physik / Chemie | 12 | planbarer Unterrichtsraum |
+| Kunst | 8 | planbarer Unterrichtsraum |
+| Deutsch | 11 | planbarer Unterrichtsraum |
+| Geschichte / Geographie | 12 | planbarer Unterrichtsraum |
+| Mathematik | 10 | planbarer Unterrichtsraum |
+| Einzelarbeitsraum | 8 | frei nutzbar, nicht verplanbar |
+| Gruppenraum | 14 | frei nutzbar, nicht verplanbar |
+| Pausenraum | 6 | kein Unterrichtsraum |
 
-In Lean ist diese Trennung explizit:
+Die sechs regulären Unterrichtsräume sind grundsätzlich fachübergreifend nutzbar. Ihre Namen steuern die Präferenz des Solvers, nicht eine harte Exklusivität. Mathematik bevorzugt also den Mathematikraum, kann bei Bedarf aber in einen anderen regulären Unterrichtsraum ausweichen.
+
+In Lean ist die Trennung explizit:
 
 ```lean
-schedulableRooms = [.english, .science, .art, .german, .historyGeography]
+schedulableRooms =
+  [.english, .science, .art, .german, .historyGeography, .mathematics]
+
 independentlyUsableRooms = [.individualWork, .groupWork]
 ```
 
-`preferredRooms` enthält ausschließlich `schedulableRooms`. Einzelarbeitsraum, Gruppenraum und Chillraum können daher weder vom Browser-Solver noch von einem Lean-validierten Plan als Unterrichtsraum vergeben werden.
+`roomCapacity` enthält die oben genannten SuS-Grenzen. Einzelarbeitsraum, Gruppenraum und Pausenraum erscheinen niemals in `preferredRooms`.
+
+## Kapazitätsbewusste Lerngruppen
+
+`ScheduledLesson` enthält inzwischen nicht mehr nur Fach, Lehrkraft und Raum, sondern auch die tatsächlich zugeordneten SuS. Lean kann deshalb eine Gruppe formal ablehnen, wenn sie den Raum überfüllt.
+
+Beispiel:
+
+```lean
+example : roomCapacity .mathematics = 10 := by decide
+```
+
+Ein verifiziertes Beispiel akzeptiert zehn SuS im Mathematikraum und weist dieselbe Gruppe mit elf SuS zurück.
+
+Der Browser-Solver bildet bei Bedarf mehrere Gruppen für dasselbe Fach. Dafür müssen aber für jede Gruppe gleichzeitig vorhanden sein:
+
+1. eine qualifizierte Lehrkraft,
+2. ein regulärer Unterrichtsraum,
+3. genügend Raumkapazität.
+
+Ein Modelltest zeigt: 18 gleichzeitige Mathematik-SuS am Montagvormittag können auf zwei Gruppen verteilt werden. 25 sind dort nicht lösbar, weil nur zwei Mathematik-Lehrkräfte verfügbar sind und zwei reguläre Räume zusammen höchstens 24 SuS aufnehmen können.
 
 ## Struktur
 
 ```text
 GangwayLean/
-  Domain.lean         Grundtypen: Tage, Blöcke, Slots, Fächer, Lehrkräfte, Tages-/Wochenwahl
-  SchoolData.lean     Konkrete Gangway-Lehrkräfte, Fächer und Verfügbarkeiten
-  Planning.lean       Lehreroptionen, Unterrichtsangebote, Abdeckung und Konflikte
-  Rooms.lean          Räume, planbare vs. frei nutzbare Räume und raumbewusste Validierung
-  Examples.lean       Verifizierte Basisbeispiele und Randfälle
-  VerifiedPlans.lean  Lean-verifizierter Referenzstundenplan
+  Domain.lean
+  SchoolData.lean
+  Planning.lean
+  Rooms.lean          Räume, Kapazitäten, Gruppenmitgliedschaft und Konflikte
+  Examples.lean
+  VerifiedPlans.lean  Lean-verifizierter kapazitätsbewusster Referenzplan
 planner/
-  index.html          interaktive Oberfläche
-  model.js            Browser-Spiegel des Lean-Datenmodells + Backtracking-Solver
-  app.js              Eingabe, Plananzeige und Lean-Export
+  index.html
+  model.js            kapazitätsbewusster Backtracking-Solver
+  app.js              UI, Gruppendarstellung und Lean-Export
   test-data.js        reproduzierbare synthetische Kohorten
-  test-cohorts.js     automatische Kohorten- und Ressourcentests
-  TESTDATA.md         Dokumentation der Lasttests
-GangwayLean.lean      Bibliotheks-Einstiegspunkt
+  test-cohorts.js     Kapazitäts-/Kollisionstests
+  TESTDATA.md         dokumentierte Lasttest-Ergebnisse
+GangwayLean.lean
 ```
 
-## Planungsmodell
+## Planvalidierung
 
-Eine `AttendanceChoice` beschreibt **einen Besuchstag eines SuS**: Tag, Block, Abschlussniveau und drei Fachwünsche. `WeeklyChoice` erzwingt daraus eine vollständige Montag-/Donnerstag-Deklaration mit jeweils genau einem gewählten Block und genau drei Slot-Fächern.
+Eine `ScheduledLesson` ist nur gültig, wenn:
 
-Ein `LessonOffering` beschreibt Fach, Lehrkraft und Unterrichtsmoment. `ScheduledLesson` ergänzt dieses Angebot um einen planbaren Unterrichtsraum. `scheduledPlanValid` verlangt:
+1. die Lehrkraft anwesend ist,
+2. die Lehrkraft das Fach unterrichten darf,
+3. der Raum planbar ist,
+4. `students.length ≤ roomCapacity room` gilt.
 
-1. jede Lehrkraft ist im Block anwesend,
-2. jede Lehrkraft darf das Fach unterrichten,
-3. der zugewiesene Raum gehört zu `schedulableRooms`,
-4. keine Lehrkraft wird im selben Slot doppelt eingesetzt,
-5. kein planbarer Raum wird im selben Slot doppelt eingesetzt.
+Für einen ganzen Plan gilt zusätzlich:
 
-Die unabhängig nutzbaren Arbeitsräume erscheinen absichtlich nicht in diesen Konfliktbedingungen, weil der Stundenplan sie nie exklusiv reserviert.
+- keine Lehrkraft gleichzeitig in zwei Gruppen,
+- kein Raum gleichzeitig für zwei Gruppen,
+- kein SuS gleichzeitig in zwei Gruppen,
+- jede Fachwahl wird nur dann als abgedeckt gezählt, wenn der betreffende SuS tatsächlich in der Gruppenliste steht.
 
-`scheduledTimetableValidFor` prüft zusätzlich, ob alle übergebenen Wochenwahlen tatsächlich abgedeckt werden.
+`scheduledTimetableValidFor` prüft diese Bedingungen gegen vollständige Wochenwahlen.
 
-`GangwayLean/VerifiedPlans.lean` enthält mit `referencePlan` einen konkreten Plan, für den Lean per `decide` beweist:
+## Synthetische Kohorten
 
-```lean
-example : scheduledTimetableValidFor referencePlan [alexWeekly, beaWeekly] = true := by
-  decide
-```
+Der Planner enthält reproduzierbare Szenarien für 25, 50, 75 und 100 eingeschriebene SuS. Die Abwesenheit wird pro Unterrichtstag deterministisch simuliert.
 
-Zusätzliche `by decide`-Tests beweisen, dass Einzelarbeitsraum und Gruppenraum nicht planbar sind.
+Mit den nun bekannten Kapazitäten ergibt sich ein wichtiger Unterschied zum früheren Modell:
+
+| Szenario | Ergebnis |
+|---|---|
+| 25 SuS, 12 % absent | lösbar |
+| 50 SuS, 12 % absent | lösbar |
+| 75 SuS, ca. 10 % absent | Kapazitätsengpass |
+| 75 SuS, 12 % absent | Kapazitätsengpass |
+| 75 SuS, ca. 15 % absent | Kapazitätsengpass |
+| 75 SuS, 12 % absent, 70 % vormittags | Kapazitätsengpass |
+| 100 SuS, 12 % absent | mehrere Engpässe |
+
+Das bedeutet **nicht**, dass 75 reale SuS grundsätzlich unplanbar sind. Die Fachwünsche sind synthetisch. Es bedeutet, dass die konkrete reproduzierbare Testverteilung die aktuelle Parallelkapazität überschreitet.
+
+Im 75-SuS-/12-%-Szenario entstehen am Montagvormittag beispielsweise gleichzeitig 17 Bio- und 16 Physik-Wünsche. Dort ist jeweils nur eine passende Fachlehrkraft anwesend; ein regulärer Raum fasst maximal 12 SuS. Genau deshalb wird dieser Moment korrekt als unlösbar markiert.
+
+Details stehen in `planner/TESTDATA.md`.
 
 ## Dynamischen HTML-Planer im Codespace starten
-
-Im Repo-Root:
 
 ```bash
 python3 -m http.server 8000 -d planner
 ```
 
-Danach im Codespace unter **Ports** den Port `8000` öffnen.
+Danach im Codespace unter **Ports** Port `8000` öffnen.
 
-Der Planer startet mit dem Lean-Referenzfall. Du kannst Belegungen hinzufügen oder entfernen, ESA/MSA, Tag, Block und drei Fächer auswählen und anschließend **Plan erzeugen** wählen. Über **Synthetische Kohorte laden** stehen reproduzierbare Testszenarien für 25, 50, 75 und 100 SuS zur Verfügung.
+Über **Synthetische Kohorte laden** können die Lasttests direkt in der UI geladen werden. Jede Lerngruppenkarte zeigt nun auch:
 
-Gleiche Fachwünsche im selben Slot werden zu einer gemeinsamen Lerngruppe gebündelt. Für jeden Unterrichtsmoment sucht der Browser per Backtracking gleichzeitig nach:
+- zugewiesenen Raum,
+- Raumkapazität,
+- aktuelle SuS-Zahl,
+- die konkret zugeordneten SuS.
 
-- einer qualifizierten und anwesenden Lehrkraft pro Lerngruppe,
-- einem der fünf regulären Unterrichtsräume,
-- einer Kombination ohne Lehrer- oder Raumkollision.
+## Lean-Export
 
-Einzelarbeitsraum und Gruppenraum werden bei dieser Suche vollständig ignoriert und bleiben für die freie Nutzung verfügbar.
+Ein erfolgreicher Browserplan kann als Lean-Code ausgegeben werden. Der Export enthält:
 
-### Lean-Export
+- alle `AttendanceChoice`-Werte,
+- konkrete `ScheduledLesson`-Gruppen,
+- Raum und Lehrkraft,
+- die SuS-Liste jeder Gruppe,
+- `by decide`-Checks für Planvalidität und Abdeckung.
 
-Ein erfolgreicher Browserplan kann unten als Lean-Code ausgegeben und kopiert werden. Der Export enthält die `AttendanceChoice`-Werte, den konkreten `ScheduledLesson`-Plan und `by decide`-Checks.
-
-Wichtig: Der Browser validiert gegen eine JavaScript-Spiegelung der Lean-Regeln. **Formal verifiziert** ist ein neu erzeugter Browserplan erst, nachdem der exportierte Lean-Code ins Projekt übernommen wurde und `lake build` erfolgreich war. Der mitgelieferte `referencePlan` ist bereits Teil des regulären Lean-Builds.
-
-## Noch nicht modelliert
-
-Für einen vollständigen automatischen Schulplan fehlen insbesondere:
-
-- reale bzw. pseudonymisierte SuS-Daten und ihre Wochenwahlen,
-- Raumkapazitäten,
-- Mindest-/Maximalgruppengrößen,
-- Pausen oder abweichende Slotlängen,
-- Prioritäten oder Erst-/Zweitwünsche,
-- individuelle Regeln zur Nutzung von Einzelarbeitsraum und Gruppenraum,
-- Optimierungsziele wie möglichst wenige Lehrerwechsel oder gleichmäßige Gruppengrößen,
-- automatische Rückführung jedes Browserplans in einen CI-verifizierten Lean-Artefakt-Workflow.
-
-## Build
-
-Das Projekt ist auf Lean **4.30.0** festgelegt.
+Formal verifiziert ist ein Browserplan erst nach erfolgreichem:
 
 ```bash
 lake build
 ```
 
-Zusätzlich können die Browser- und Kohortentests lokal ausgeführt werden:
+## Noch nicht modelliert
+
+- reale bzw. pseudonymisierte Wochenwahlen,
+- Mindestgruppengrößen,
+- individuelle Förder-/Einzelarbeitsregeln,
+- Prioritäten oder Erst-/Zweitwünsche,
+- Pausen oder abweichende Slotlängen,
+- Optimierungsziele wie möglichst kleine Gruppen oder wenige Lehrerwechsel,
+- dynamische Anwesenheitsänderungen am Unterrichtstag.
+
+## Build und Tests
+
+Das Projekt ist auf Lean **4.30.0** festgelegt.
 
 ```bash
+lake build
 node planner/test-model.js
 node planner/test-cohorts.js
 ```
 
-GitHub Actions führt Lean-Build, Browser-Modelltest und synthetische Kohortentests bei Pushes und Pull Requests aus.
+GitHub Actions führt Lean-Build, Browser-Modelltest und synthetische Kapazitätstests bei Pushes und Pull Requests aus.
