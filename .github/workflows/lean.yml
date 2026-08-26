@@ -12,6 +12,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: leanprover/lean-action@v1
-        with:
-          build: true
+
+      - name: Install Lean 4.30.0
+        run: |
+          curl -L --fail --retry 3 \
+            https://github.com/leanprover/lean4/releases/download/v4.30.0/lean-4.30.0-linux.tar.zst \
+            -o /tmp/lean.tar.zst
+          mkdir -p /tmp/lean
+          tar --zstd -xf /tmp/lean.tar.zst -C /tmp/lean --strip-components=1
+          echo "/tmp/lean/bin" >> "$GITHUB_PATH"
+
+      - name: Build
+        run: lake build
